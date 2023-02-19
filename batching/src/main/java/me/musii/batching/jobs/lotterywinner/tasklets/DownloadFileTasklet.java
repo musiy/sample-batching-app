@@ -10,6 +10,7 @@ import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.core.step.tasklet.Tasklet;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.repeat.RepeatStatus;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -22,11 +23,15 @@ import java.nio.file.Path;
 import java.util.Objects;
 
 /**
- * Just an generic tasklet for downloading the file by provided path.
+ * Just a generic tasklet for downloading the file by provided path.
  * File is saved to temporary folder and path preserved in context.
  */
 @Component
 public class DownloadFileTasklet implements Tasklet {
+
+    @Value("${app.batching.lottery.source.url}")
+    private String sourceUsersUrl;
+
 
     @SneakyThrows
     @Override
@@ -39,14 +44,15 @@ public class DownloadFileTasklet implements Tasklet {
         return RepeatStatus.FINISHED;
     }
 
-    private static URI getSourceUri(StepExecution stepExecution) {
+    private URI getSourceUri(StepExecution stepExecution) {
         JobParameters jobParameters = stepExecution.getJobParameters();
-        String sourceUrl = jobParameters.getString(LotteryWinnerJob.SOURCE_URL_KEY);
+        String sourceUrl = jobParameters.getString(LotteryWinnerJob.SOURCE_URL_KEY, sourceUsersUrl);
         Objects.requireNonNull(sourceUrl);
         return URI.create(sourceUrl);
     }
 
-    private static Path downloadFileToTemporary(URI uri, String tmpFilePrefix) throws IOException, InterruptedException {
+    private Path downloadFileToTemporary(URI uri, String tmpFilePrefix) throws IOException, InterruptedException {
+        // todo http client can be bean
         HttpRequest httpRequest = HttpRequest.newBuilder(uri).GET().build();
         HttpClient httpClient = HttpClient.newHttpClient();
         Path temp = Files.createTempFile(tmpFilePrefix, ".json");

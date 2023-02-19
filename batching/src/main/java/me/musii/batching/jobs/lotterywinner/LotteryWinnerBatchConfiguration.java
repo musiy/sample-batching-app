@@ -51,10 +51,10 @@ public class LotteryWinnerBatchConfiguration {
     @Bean
     public Job lotteryWinnerJob(JobRepository jobRepository,
                                 PlatformTransactionManager transactionManager) {
-        return new JobBuilder("chooseLotteryWinner", jobRepository)
+        return new JobBuilder("lotteryWinnerJob", jobRepository)
                 //.validator(parametersValidator()) todo add some sample validation of parameters, see 4.1.4
                 .listener(sampleConsoleNotifyJobExecutionListener)
-                .start(downloadUsersFileStep(jobRepository, transactionManager))
+                .start(downloadFileStep(jobRepository, transactionManager))
                 .next(clearDataInDb(jobRepository, transactionManager))
                 .next(saveDataFromSourceToDb(jobRepository, transactionManager))
                 .build();
@@ -65,9 +65,9 @@ public class LotteryWinnerBatchConfiguration {
      * The purpose of this step is cache file on the disk.
      */
     @Bean
-    public Step downloadUsersFileStep(JobRepository jobRepository,
-                                      PlatformTransactionManager transactionManager) {
-        return new StepBuilder("downloadFileFromExternalSource", jobRepository)
+    public Step downloadFileStep(JobRepository jobRepository,
+                                 PlatformTransactionManager transactionManager) {
+        return new StepBuilder("downloadFileStep", jobRepository)
                 .tasklet(downloadFileTasklet, transactionManager)
                 .listener(toJobContextPromotionListener(LotteryWinnerJob.LOCAL_FILE_NAME_KEY))
                 .allowStartIfComplete(true)
@@ -100,7 +100,7 @@ public class LotteryWinnerBatchConfiguration {
     public ItemReader<UserDescr> usersFromJsonReader() {
         ObjectMapper mapper = skipUnknownFieldsObjectMapper();
         JsonItemReader<UserDescr> personItemReader = new JsonItemReaderBuilder<UserDescr>()
-                .name("personItemReader")
+                .name("usersReader")
                 .jsonObjectReader(new JacksonJsonObjectReader<>(mapper, UserDescr.class))
                 .build();
         return new WrappedJsonItemReader(personItemReader);
@@ -123,7 +123,7 @@ public class LotteryWinnerBatchConfiguration {
                          PlatformTransactionManager transactionManager) {
 
         SampleItemStream sampleItemStream = new SampleItemStream(10); // todo
-        return new StepBuilder("handleRecords", jobRepository)
+        return new StepBuilder("noOpStep", jobRepository)
                 .<String, String>chunk(2, transactionManager) // todo chunkSize??
                 .allowStartIfComplete(true)
                 .reader(sampleItemStream)
