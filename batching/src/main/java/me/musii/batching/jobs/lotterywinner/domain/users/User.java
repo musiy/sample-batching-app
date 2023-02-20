@@ -15,7 +15,7 @@ public class User {
     private Long id;
     private Long userId;
     private String name;
-    private Long amount;
+    private Integer amount;
 
     // todo actually should not be here, because of separation of concerns,
     //      but just for simplicity leave it here

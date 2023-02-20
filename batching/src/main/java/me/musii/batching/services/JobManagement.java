@@ -3,6 +3,7 @@ package me.musii.batching.services;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import org.springframework.batch.core.Job;
+import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobParameter;
 import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.launch.JobLauncher;
@@ -25,7 +26,7 @@ public class JobManagement {
     private final Collection<Job> jobs;
 
     @SneakyThrows
-    public void startJob(String jobName, Map<String, String> properties) {
+    public String startJob(String jobName, Map<String, String> properties) {
         Job job = jobs.stream()
                 .filter(j -> jobName.equals(j.getName()))
                 .findFirst()
@@ -37,6 +38,7 @@ public class JobManagement {
                     return new JobParameter<>(value, String.class, false);
                 }));
         JobParameters jobParameters = new JobParameters(jobParams);
-        jobLauncher.run(job, jobParameters);
+        JobExecution jobExecution = jobLauncher.run(job, jobParameters);
+        return (String) jobExecution.getExecutionContext().get("result");
     }
 }

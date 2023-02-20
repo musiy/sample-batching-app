@@ -6,14 +6,17 @@ import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import me.musii.batching.jobs.lotterywinner.domain.users.User;
 import me.musii.batching.jobs.lotterywinner.domain.users.UserDescr;
+import me.musii.batching.jobs.lotterywinner.domain.users.UserIdAndAmount;
 import me.musii.batching.jobs.lotterywinner.tasklets.ClearDataInDBTasklet;
 import me.musii.batching.jobs.lotterywinner.tasklets.DownloadFileTasklet;
+import me.musii.batching.jobs.lotterywinner.tasklets.SuggestWinnerTasklet;
 import me.musii.batching.jobs.sample.SampleConsoleNotifyJobExecutionListener;
 import me.musii.batching.jobs.sample.SampleItemStream;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.StepExecution;
 import org.springframework.batch.core.StepExecutionListener;
+import org.springframework.batch.core.job.DefaultJobParametersValidator;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.listener.ExecutionContextPromotionListener;
 import org.springframework.batch.core.listener.JobParameterExecutionContextCopyListener;
@@ -21,6 +24,10 @@ import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.item.ItemWriter;
+import org.springframework.batch.item.file.FlatFileItemReader;
+import org.springframework.batch.item.file.builder.FlatFileItemReaderBuilder;
+import org.springframework.batch.item.file.mapping.BeanWrapperFieldSetMapper;
 import org.springframework.batch.item.json.JacksonJsonObjectReader;
 import org.springframework.batch.item.json.JsonItemReader;
 import org.springframework.batch.item.json.builder.JsonItemReaderBuilder;
@@ -30,16 +37,15 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.transaction.PlatformTransactionManager;
 
 @Configuration
-//@ImportResource("classpath:lottery-batch-configuration.xml") todo
-//@PropertySource(value = "classpath:batching.properties")
 @RequiredArgsConstructor
 public class LotteryWinnerBatchConfiguration {
 
     private final SampleConsoleNotifyJobExecutionListener sampleConsoleNotifyJobExecutionListener;
-    private final UserDescrWriter userDescrWriter;
+    private final ItemWriter<User> userItemWriter;
+    private final ItemWriter<UserIdAndAmount> userItemAmountUpdateWriter;
     private final UserDescToUserEntityProcessor userDescToUserEntityProcessor;
-
     private final DownloadFileTasklet downloadFileTasklet;
+    private final SuggestWinnerTasklet suggestWinnerTasklet;
     private final ClearDataInDBTasklet clearDataInDBTasklet;
 
     /**
@@ -51,12 +57,16 @@ public class LotteryWinnerBatchConfiguration {
     @Bean
     public Job lotteryWinnerJob(JobRepository jobRepository,
                                 PlatformTransactionManager transactionManager) {
+        DefaultJobParametersValidator validator = new DefaultJobParametersValidator();
+        validator.setRequiredKeys(new String[]{LotteryWinnerJob.CSV_FILE_NAME_KEY});
         return new JobBuilder("lotteryWinnerJob", jobRepository)
-                //.validator(parametersValidator()) todo add some sample validation of parameters, see 4.1.4
+                .validator(validator)
                 .listener(sampleConsoleNotifyJobExecutionListener)
                 .start(downloadFileStep(jobRepository, transactionManager))
                 .next(clearDataInDb(jobRepository, transactionManager))
                 .next(saveDataFromSourceToDb(jobRepository, transactionManager))
+                .next(updateDbByAmounts(jobRepository, transactionManager))
+                .next(getWinnerStep(jobRepository, transactionManager))
                 .build();
     }
 
@@ -75,6 +85,19 @@ public class LotteryWinnerBatchConfiguration {
     }
 
     @Bean
+    public Step getWinnerStep(JobRepository jobRepository,
+                              PlatformTransactionManager transactionManager) {
+        return new StepBuilder("getWinnerStep", jobRepository)
+                .tasklet(suggestWinnerTasklet, transactionManager)
+                //.listener(toJobContextPromotionListener(LotteryWinnerJob.LOCAL_FILE_NAME_KEY))
+                .allowStartIfComplete(true)
+                .build();
+    }
+
+    /**
+     * Clear data before replacement.
+     */
+    @Bean
     public Step clearDataInDb(JobRepository jobRepository,
                               PlatformTransactionManager transactionManager) {
         return new StepBuilder("clearDataInDb", jobRepository)
@@ -90,7 +113,18 @@ public class LotteryWinnerBatchConfiguration {
                 .<UserDescr, User>chunk(chunkSize, transactionManager)
                 .reader(usersFromJsonReader())
                 .processor(userDescToUserEntityProcessor)
-                .writer(userDescrWriter)
+                .writer(userItemWriter)
+                .allowStartIfComplete(true)
+                .build();
+    }
+
+    @Bean
+    public Step updateDbByAmounts(JobRepository jobRepository,
+                                  PlatformTransactionManager transactionManager) {
+        return new StepBuilder("convertJson", jobRepository)
+                .<UserIdAndAmount, UserIdAndAmount>chunk(chunkSize, transactionManager)
+                .reader(usersFromCsvReader())
+                .writer(userItemAmountUpdateWriter)
                 .allowStartIfComplete(true)
                 .build();
     }
@@ -103,8 +137,23 @@ public class LotteryWinnerBatchConfiguration {
                 .name("usersReader")
                 .jsonObjectReader(new JacksonJsonObjectReader<>(mapper, UserDescr.class))
                 .build();
-        return new WrappedJsonItemReader(personItemReader);
+        return new WrappedJsonItemReader<>(personItemReader);
     }
+
+    @SneakyThrows
+    @Bean
+    public ItemReader<UserIdAndAmount> usersFromCsvReader() {
+        FlatFileItemReader<UserIdAndAmount> reader = new FlatFileItemReaderBuilder<UserIdAndAmount>()
+                .name("usersFromCsvReader")
+                .delimited()
+                .names(new String[]{"id", "amount"})
+                .fieldSetMapper(new BeanWrapperFieldSetMapper<>() {{
+                    setTargetType(UserIdAndAmount.class);
+                }})
+                .build();
+        return new WrappedCsvItemReader<>(reader);
+    }
+
 
     /**
      * Object mapper which allows to skip unknown fields from source json.

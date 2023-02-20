@@ -32,7 +32,6 @@ public class DownloadFileTasklet implements Tasklet {
     @Value("${app.batching.lottery.source.url}")
     private String sourceUsersUrl;
 
-
     @SneakyThrows
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {

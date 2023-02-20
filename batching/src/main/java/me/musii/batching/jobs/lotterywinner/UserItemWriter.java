@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 @Component
 @Slf4j
 @AllArgsConstructor
-public class UserDescrWriter implements ItemWriter<User> {
+public class UserItemWriter implements ItemWriter<User> {
 
     private final UsersRepository usersRepository;
 

@@ -21,7 +21,7 @@ public class TestController {
     @GetMapping("/run/{jobName}")
     public String runJob(@PathVariable String jobName,
                          @RequestParam Map<String, String> queryProperties) {
-        jobManagement.startJob(jobName, queryProperties);
-        return "Ok!";
+        String result = jobManagement.startJob(jobName, queryProperties);
+        return result == null ? "Ok!" : result;
     }
 }
