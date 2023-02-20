@@ -16,6 +16,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
+import java.sql.ResultSet;
 import java.util.Objects;
 
 @Component
@@ -48,9 +49,12 @@ public class SuggestWinnerTasklet implements Tasklet {
 
     private Long getWinnerId(int participantsCount, long jobExecutionId) {
         RandomSupplier randomSupplier = new RandomSupplier(participantsCount);
+
+        String query = "SELECT u.ID FROM (SELECT rownum() AS rn, ID FROM\n" +
+                "    (SELECT ID from USER WHERE job_execution_id=?)) u WHERE u.rn=?";
         return jdbcTemplate.query(
                 //language=SQL
-                "SELECT u.ID FROM (SELECT rownum() AS rn, id FROM user WHERE job_execution_id=?) u WHERE u.RN = ?",
+                query,
                 rs -> {
                     if (rs.next()) {
                         return rs.getLong(1);
@@ -59,7 +63,7 @@ public class SuggestWinnerTasklet implements Tasklet {
                     }
                 },
                 jobExecutionId,
-                randomSupplier.nextInt()
+                randomSupplier.nextInt() + 1
         );
     }
 
