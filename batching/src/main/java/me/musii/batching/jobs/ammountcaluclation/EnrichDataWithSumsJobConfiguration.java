@@ -1,8 +1,9 @@
 package me.musii.batching.jobs.ammountcaluclation;
 
 import lombok.RequiredArgsConstructor;
-import me.musii.batching.jobs.lotterywinner.domain.users.UserDescr;
-import me.musii.batching.jobs.lotterywinner.domain.users.UserIdAndAmount;
+import me.musii.batching.jobs.utils.RandomSupplier;
+import me.musii.batching.jobs.lotterywinner.domain.UserDescr;
+import me.musii.batching.jobs.lotterywinner.domain.UserIdAndAmount;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.job.builder.JobBuilder;
@@ -24,14 +25,13 @@ import org.springframework.transaction.PlatformTransactionManager;
 public class EnrichDataWithSumsJobConfiguration {
 
     @Autowired
-    private Step downloadFileStep;
-    @Autowired
     private ItemReader<UserDescr> usersFromJsonReader;
 
 
     @Bean
     public Job getCvsFromJson(JobRepository jobRepository,
-                              PlatformTransactionManager transactionManager) {
+                              PlatformTransactionManager transactionManager,
+                              Step downloadFileStep) {
         return new JobBuilder("getCvsFromJson", jobRepository)
                 .start(downloadFileStep)
                 .next(jsonToCvsStep(jobRepository, transactionManager))

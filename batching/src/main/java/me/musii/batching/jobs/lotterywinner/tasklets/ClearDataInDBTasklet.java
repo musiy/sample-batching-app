@@ -2,7 +2,7 @@ package me.musii.batching.jobs.lotterywinner.tasklets;
 
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
-import me.musii.batching.jobs.lotterywinner.domain.users.dao.UsersRepository;
+import me.musii.batching.jobs.lotterywinner.domain.dao.UsersRepository;
 import org.springframework.batch.core.StepContribution;
 import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.core.step.tasklet.Tasklet;
@@ -21,7 +21,6 @@ public class ClearDataInDBTasklet implements Tasklet {
     @SneakyThrows
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
-        // here we can delete not all records, but part of them, chunking deletion
         repository.deleteAll();
         return RepeatStatus.FINISHED;
     }

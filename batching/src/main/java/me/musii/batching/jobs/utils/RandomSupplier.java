@@ -1,4 +1,4 @@
-package me.musii.batching.jobs.ammountcaluclation;
+package me.musii.batching.jobs.utils;
 
 import java.time.LocalDateTime;
 import java.util.Random;

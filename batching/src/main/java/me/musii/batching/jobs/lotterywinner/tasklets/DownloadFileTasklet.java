@@ -1,8 +1,9 @@
 package me.musii.batching.jobs.lotterywinner.tasklets;
 
 import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 import me.musii.batching.jobs.lotterywinner.LotteryWinnerJob;
-import me.musii.batching.utils.Utils;
+import org.springframework.batch.core.JobInstance;
 import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.StepContribution;
 import org.springframework.batch.core.StepExecution;
@@ -27,8 +28,11 @@ import java.util.Objects;
  * File is saved to temporary folder and path preserved in context.
  */
 @Component
+@Slf4j
 public class DownloadFileTasklet implements Tasklet {
 
+    // todo instead of hard-code any user-specific code it's necessary to always url in  parameters
+    // todo maybe each job should have it's own launch service.
     @Value("${app.batching.lottery.source.url}")
     private String sourceUsersUrl;
 
@@ -37,17 +41,22 @@ public class DownloadFileTasklet implements Tasklet {
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
         StepExecution stepExecution = contribution.getStepExecution();
         URI sourceUri = getSourceUri(stepExecution);
-        Path temp = downloadFileToTemporary(sourceUri, Utils.getJobInstancePrefix(stepExecution));
+        Path temp = downloadFileToTemporary(sourceUri, getJobInstancePrefix(stepExecution));
         ExecutionContext stepContext = stepExecution.getExecutionContext();
         stepContext.put(LotteryWinnerJob.LOCAL_FILE_NAME_KEY, temp.toString());
+        // todo delete it from the disk after job
+        log.info("temporary file {{}}", temp);
         return RepeatStatus.FINISHED;
     }
 
     private URI getSourceUri(StepExecution stepExecution) {
         JobParameters jobParameters = stepExecution.getJobParameters();
-        String sourceUrl = jobParameters.getString(LotteryWinnerJob.SOURCE_URL_KEY, sourceUsersUrl);
-        Objects.requireNonNull(sourceUrl);
-        return URI.create(sourceUrl);
+        String from = jobParameters.getString(LotteryWinnerJob.SOURCE_URL_KEY);
+        if (from == null) {
+            from = sourceUsersUrl;
+        }
+        Objects.requireNonNull(from);
+        return URI.create(from);
     }
 
     private Path downloadFileToTemporary(URI uri, String tmpFilePrefix) throws IOException, InterruptedException {
@@ -59,5 +68,9 @@ public class DownloadFileTasklet implements Tasklet {
         return temp;
     }
 
+    private static String getJobInstancePrefix(StepExecution stepExecution) {
+        JobInstance jobInstance = stepExecution.getJobExecution().getJobInstance();
+        return jobInstance.getJobName() + jobInstance.getInstanceId();
+    }
 
 }

@@ -1,10 +1,12 @@
 package me.musii.batching.jobs.lotterywinner;
 
-import lombok.AllArgsConstructor;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import me.musii.batching.jobs.lotterywinner.domain.users.User;
-import me.musii.batching.jobs.lotterywinner.domain.users.UserIdAndAmount;
-import me.musii.batching.jobs.lotterywinner.domain.users.dao.UsersRepository;
+import me.musii.batching.jobs.lotterywinner.domain.User;
+import me.musii.batching.jobs.lotterywinner.domain.UserIdAndAmount;
+import me.musii.batching.jobs.lotterywinner.domain.dao.UsersRepository;
+import org.springframework.batch.core.StepExecution;
+import org.springframework.batch.core.annotation.BeforeStep;
 import org.springframework.batch.item.Chunk;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.stereotype.Component;
@@ -15,10 +17,11 @@ import java.util.stream.Collectors;
 
 @Component
 @Slf4j
-@AllArgsConstructor
+@RequiredArgsConstructor
 public class UserItemAmountUpdateWriter implements ItemWriter<UserIdAndAmount> {
 
     private final UsersRepository usersRepository;
+    private StepExecution stepExecution;
 
     @Override
     public void write(Chunk<? extends UserIdAndAmount> chunk) {
@@ -29,7 +32,8 @@ public class UserItemAmountUpdateWriter implements ItemWriter<UserIdAndAmount> {
                 .map(UserIdAndAmount::getId)
                 .collect(Collectors.toList());
 
-        Iterable<User> allById = usersRepository.findAllByUserIdIn(ids);
+        Iterable<User> allById = usersRepository.findAllByUserIdInAndJobExecutionIdEquals(ids,
+                stepExecution.getJobExecutionId()) ;
         allById.forEach(u -> {
             Integer amount = amounts.get(u.getUserId());
             if (amount != null) {
@@ -37,6 +41,11 @@ public class UserItemAmountUpdateWriter implements ItemWriter<UserIdAndAmount> {
             }
         });
         usersRepository.saveAll(allById);
+    }
+
+    @BeforeStep
+    public void saveStepExecution(StepExecution stepExecution) {
+        this.stepExecution = stepExecution;
     }
 
 }

@@ -22,9 +22,11 @@ import java.util.stream.Collectors;
 public class JobManagement {
 
     private final JobLauncher jobLauncher;
-
     private final Collection<Job> jobs;
 
+    /**
+     * Convert simple params Map<String, String> to JobParameters and launch the job.
+     */
     @SneakyThrows
     public String startJob(String jobName, Map<String, String> properties) {
         Job job = jobs.stream()
@@ -33,12 +35,11 @@ public class JobManagement {
                 .orElseThrow(() -> new NoSuchJobException("Job not found: " + jobName));
 
         Map<String, JobParameter<?>> jobParams = properties.entrySet().stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, e -> {
-                    String value = e.getValue();
-                    return new JobParameter<>(value, String.class, false);
-                }));
+                .collect(Collectors.toMap(Map.Entry::getKey,
+                        e -> new JobParameter<>(e.getValue(), String.class, false)));
         JobParameters jobParameters = new JobParameters(jobParams);
         JobExecution jobExecution = jobLauncher.run(job, jobParameters);
         return (String) jobExecution.getExecutionContext().get("result");
     }
+
 }

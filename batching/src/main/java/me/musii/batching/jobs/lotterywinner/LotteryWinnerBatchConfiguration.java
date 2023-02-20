@@ -4,25 +4,20 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
-import me.musii.batching.jobs.lotterywinner.domain.users.User;
-import me.musii.batching.jobs.lotterywinner.domain.users.UserDescr;
-import me.musii.batching.jobs.lotterywinner.domain.users.UserIdAndAmount;
+import me.musii.batching.jobs.lotterywinner.domain.User;
+import me.musii.batching.jobs.lotterywinner.domain.UserDescr;
+import me.musii.batching.jobs.lotterywinner.domain.UserIdAndAmount;
 import me.musii.batching.jobs.lotterywinner.tasklets.ClearDataInDBTasklet;
 import me.musii.batching.jobs.lotterywinner.tasklets.DownloadFileTasklet;
 import me.musii.batching.jobs.lotterywinner.tasklets.SuggestWinnerTasklet;
 import me.musii.batching.jobs.sample.SampleConsoleNotifyJobExecutionListener;
-import me.musii.batching.jobs.sample.SampleItemStream;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
-import org.springframework.batch.core.StepExecution;
-import org.springframework.batch.core.StepExecutionListener;
 import org.springframework.batch.core.job.DefaultJobParametersValidator;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.listener.ExecutionContextPromotionListener;
-import org.springframework.batch.core.listener.JobParameterExecutionContextCopyListener;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.StepBuilder;
-import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.file.FlatFileItemReader;
@@ -54,6 +49,10 @@ public class LotteryWinnerBatchConfiguration {
     @Value("${app.batching.lottery.chunk.size:2}")
     private int chunkSize;
 
+    /**
+     * todo The main disadvantage of this job is that during rerun it starts completely from the start.
+     *      Can we do better and restart it from some point?
+     */
     @Bean
     public Job lotteryWinnerJob(JobRepository jobRepository,
                                 PlatformTransactionManager transactionManager) {
@@ -63,7 +62,7 @@ public class LotteryWinnerBatchConfiguration {
                 .validator(validator)
                 .listener(sampleConsoleNotifyJobExecutionListener)
                 .start(downloadFileStep(jobRepository, transactionManager))
-                .next(clearDataInDb(jobRepository, transactionManager))
+                //.next(clearDataInDb(jobRepository, transactionManager))
                 .next(saveDataFromSourceToDb(jobRepository, transactionManager))
                 .next(updateDbByAmounts(jobRepository, transactionManager))
                 .next(getWinnerStep(jobRepository, transactionManager))
@@ -72,7 +71,7 @@ public class LotteryWinnerBatchConfiguration {
 
     /**
      * JsonItemReader can download json itself from external resource.<br>
-     * The purpose of this step is cache file on the disk.
+     * The initial purpose of this step was in caching file on the disk for further steps.
      */
     @Bean
     public Step downloadFileStep(JobRepository jobRepository,
@@ -89,7 +88,6 @@ public class LotteryWinnerBatchConfiguration {
                               PlatformTransactionManager transactionManager) {
         return new StepBuilder("getWinnerStep", jobRepository)
                 .tasklet(suggestWinnerTasklet, transactionManager)
-                //.listener(toJobContextPromotionListener(LotteryWinnerJob.LOCAL_FILE_NAME_KEY))
                 .allowStartIfComplete(true)
                 .build();
     }
@@ -164,29 +162,7 @@ public class LotteryWinnerBatchConfiguration {
         return mapper;
     }
 
-    /**
-     * Sample no op step revealing the principles of data processing
-     */
-    @Bean
-    public Step noOpStep(JobRepository jobRepository,
-                         PlatformTransactionManager transactionManager) {
 
-        SampleItemStream sampleItemStream = new SampleItemStream(10); // todo
-        return new StepBuilder("noOpStep", jobRepository)
-                .<String, String>chunk(2, transactionManager) // todo chunkSize??
-                .allowStartIfComplete(true)
-                .reader(sampleItemStream)
-                .writer(sampleItemStream)
-                .listener(new StepExecutionListener() {
-
-                    public void beforeStep(StepExecution stepExecution) {
-                        ExecutionContext executionContext = stepExecution.getExecutionContext();
-                        stepExecution.getJobExecution().getExecutionContext().entrySet()
-                                .forEach(entry -> executionContext.put(entry.getKey(), entry.getValue()));
-                    }
-                })
-                .build();
-    }
 
     /**
      * Helps in passing parameters from one step to another, copying them from step context to job context.
@@ -194,18 +170,6 @@ public class LotteryWinnerBatchConfiguration {
     @Bean
     public ExecutionContextPromotionListener toJobContextPromotionListener(String... values) {
         ExecutionContextPromotionListener listener = new ExecutionContextPromotionListener();
-        listener.setKeys(values);
-        return listener;
-    }
-
-    /**
-     * Copy parameters from job to step.
-     *
-     * @param values list of parameters names, that should be copied
-     */
-    @Bean
-    public JobParameterExecutionContextCopyListener jobParameterExecutionContextCopyListener(String... values) {
-        JobParameterExecutionContextCopyListener listener = new JobParameterExecutionContextCopyListener();
         listener.setKeys(values);
         return listener;
     }

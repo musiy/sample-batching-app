@@ -1,4 +1,4 @@
-package me.musii.batching.jobs.lotterywinner.domain.users;
+package me.musii.batching.jobs.lotterywinner.domain;
 
 import lombok.Data;
 

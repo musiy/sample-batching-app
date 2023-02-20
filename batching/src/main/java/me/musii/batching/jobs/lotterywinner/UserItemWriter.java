@@ -2,8 +2,8 @@ package me.musii.batching.jobs.lotterywinner;
 
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import me.musii.batching.jobs.lotterywinner.domain.users.User;
-import me.musii.batching.jobs.lotterywinner.domain.users.dao.UsersRepository;
+import me.musii.batching.jobs.lotterywinner.domain.User;
+import me.musii.batching.jobs.lotterywinner.domain.dao.UsersRepository;
 import org.springframework.batch.item.Chunk;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.stereotype.Component;

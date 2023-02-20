@@ -3,10 +3,11 @@ package me.musii.batching.jobs.lotterywinner.tasklets;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import me.musii.batching.jobs.ammountcaluclation.RandomSupplier;
-import me.musii.batching.jobs.lotterywinner.domain.users.User;
-import me.musii.batching.jobs.lotterywinner.domain.users.dao.UsersRepository;
+import me.musii.batching.jobs.lotterywinner.domain.User;
+import me.musii.batching.jobs.lotterywinner.domain.dao.UsersRepository;
+import me.musii.batching.jobs.utils.RandomSupplier;
 import org.springframework.batch.core.StepContribution;
+import org.springframework.batch.core.StepExecution;
 import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.core.step.tasklet.Tasklet;
 import org.springframework.batch.item.ExecutionContext;
@@ -32,11 +33,24 @@ public class SuggestWinnerTasklet implements Tasklet {
     @SneakyThrows
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
-        int participantsCount = usersRepository.countByAmountGreaterThan(minAmount);
+        StepExecution stepExecution = contribution.getStepExecution();
+        int participantsCount = usersRepository.countByAmountGreaterThanAndJobExecutionIdEquals(minAmount,
+                stepExecution.getJobExecutionId());
+        Long id = getWinnerId(participantsCount, stepExecution.getJobExecutionId());
+        Objects.requireNonNull(id);
+        User winner = usersRepository.findById(id)
+                .orElseThrow(RuntimeException::new);
+        ExecutionContext ctx = stepExecution.getJobExecution().getExecutionContext();
+        log.info("THE WINNER IS {{}}!!!", winner);
+        ctx.put("result", "The winner is: " + winner);
+        return RepeatStatus.FINISHED;
+    }
+
+    private Long getWinnerId(int participantsCount, long jobExecutionId) {
         RandomSupplier randomSupplier = new RandomSupplier(participantsCount);
-        Long id = jdbcTemplate.query(
+        return jdbcTemplate.query(
                 //language=SQL
-                "select u.ID from (SELECT rownum() as rn, id FROM USER) u where u.rn = ?",
+                "SELECT u.ID FROM (SELECT rownum() AS rn, id FROM user WHERE job_execution_id=?) u WHERE u.RN = ?",
                 rs -> {
                     if (rs.next()) {
                         return rs.getLong(1);
@@ -44,15 +58,9 @@ public class SuggestWinnerTasklet implements Tasklet {
                         return null;
                     }
                 },
-                randomSupplier.nextInt());
-        Objects.requireNonNull(id);
-        User winner = usersRepository.findById(id)
-                .orElseThrow(RuntimeException::new);
-        ExecutionContext ctx = contribution.getStepExecution().getJobExecution().getExecutionContext();
-        log.info("THE WINNER IS {{}}!!!", winner);
-        ctx.put("result", "The winner is: " + winner);
-        return RepeatStatus.FINISHED;
+                jobExecutionId,
+                randomSupplier.nextInt()
+        );
     }
-
 
 }

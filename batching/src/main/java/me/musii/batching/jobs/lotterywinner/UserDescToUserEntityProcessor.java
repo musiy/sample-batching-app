@@ -1,8 +1,8 @@
 package me.musii.batching.jobs.lotterywinner;
 
 import lombok.extern.slf4j.Slf4j;
-import me.musii.batching.jobs.lotterywinner.domain.users.User;
-import me.musii.batching.jobs.lotterywinner.domain.users.UserDescr;
+import me.musii.batching.jobs.lotterywinner.domain.User;
+import me.musii.batching.jobs.lotterywinner.domain.UserDescr;
 import org.springframework.batch.core.StepExecution;
 import org.springframework.batch.core.annotation.BeforeStep;
 import org.springframework.batch.item.ItemProcessor;
